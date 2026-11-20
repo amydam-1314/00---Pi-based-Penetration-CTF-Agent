@@ -1,7 +1,28 @@
-# 真实凭据与个人配置，永不入库
+# ===== 凭据与个人配置（永不入库） =====
 .env
+.env.local
+.env.*.local
 *.json.bak
-# 运行时产物
+fofa.json
+
+# ===== pi 会话产物（如果在本目录开过 pi，防对话记录/flag 泄漏） =====
+.pi/
+
+# ===== 运行时产物 =====
 __pycache__/
 *.pyc
+*.log
+
+# ===== 编辑器 / OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== 依赖 =====
 node_modules/
+
+# 注意：.env.example 是样例，必须保留入库（别用宽泛的 .env.* 规则盖掉它）
