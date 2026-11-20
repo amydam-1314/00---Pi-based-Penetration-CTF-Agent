@@ -1,0 +1,7 @@
+# 真实凭据与个人配置，永不入库
+.env
+*.json.bak
+# 运行时产物
+__pycache__/
+*.pyc
+node_modules/

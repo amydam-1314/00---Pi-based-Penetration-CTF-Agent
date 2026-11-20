@@ -1,0 +1,10 @@
+{
+  "challenge": {"name": "", "remote": ""},
+  "params": {},
+  "verified": [],
+  "falsified": [],
+  "hypotheses": [],
+  "tooling": [],
+  "next": [],
+  "flags": []
+}

@@ -1,0 +1,17 @@
+{
+  "theme": "dark",
+  "packages": [
+    "npm:@everyx/pi-web-tools",
+    "npm:@keywaytech/pi-provider-manager",
+    "npm:pi-agent-browser",
+    "npm:pi-subagents"
+  ],
+  "defaultProvider": "cc-switch-zhipu-glm",
+  "defaultModel": "glm-4.7-flash",
+  "compaction": {
+    "enabled": true
+  },
+  "subagents": {
+    "activeRunsPrompt": true
+  }
+}
