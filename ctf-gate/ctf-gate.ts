@@ -389,6 +389,7 @@ let activeGateDir: string | null = null;
 let tmpWarned = false;   // /tmp 一次性提示（模块级：guardCore 与会话重置共用）
 const SYS_PATH = /^(?:[a-z]:)?\/(?:tmp|dev|proc|sys|usr|bin|sbin|etc|var|opt|root|home|lib|lib64|boot|run|windows|program files)(?:\/|$)/i;
 
+/** 仅 Windows 语义需要；Linux/VM 上是恒等变换（诊断与日志仍可读） */
 function toWinPath(p: string): string {
   let s = String(p ?? "").trim().replace(/^["']|["']$/g, "").replace(/\\/g, "/");
   const w = /^\/mnt\/([a-zA-Z])(?:\/(.*))?$/.exec(s);
@@ -1484,8 +1485,11 @@ export default function ctfGate(pi: ExtensionAPI) {
     const scaffoldErr = ensureScaffold(gd);
     if (scaffoldErr) return deny(scaffoldErr);
     if (cdTargets(cmd).some((p) => /^[A-Za-z]:[\\/]/.test(p))) {
-      const kaliWs = ctfWorkspace() ? safeBashPath(ctfWorkspace() as string) : "<项目根的 Kali 映射>";
-      return deny(`bash 在 Kali（自动 SSH）：cd 请用 Kali 路径（${kaliWs}/...）；read/write/edit 才用宿主路径。默认已自动进入本题，无须 cd。`);
+      const wsPath = ctfWorkspace() ? safeBashPath(ctfWorkspace() as string) : "<项目根>";
+      return deny(
+        `bash 由执行后端决定工作目录（execution.backend）：local/wsl 时用本机路径，ssh 时用远端路径。\n` +
+        `当前项目根：${wsPath}；默认已自动进入本题目录，无须 cd。若必须 cd，请用与后端一致的路径。`,
+      );
     }
 
     const guard = guardCore(gd, cmd, { stage: true });

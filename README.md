@@ -11,6 +11,7 @@ pi install git:github.com/<you>/pi-ctf-kit@v0.1.0
 
 ```
 extensions/   Pi 工具注册（board_digest / orchestrator-guard / orchestrator-patrol）
+              —— Windows→Kali 的 kali-exec 过渡扩展已移除，执行统一走 src/exec
 src/paths/    根解析（项目根、数据根）与目录身份判定
 src/exec/     ExecutionAdapter：local / ssh 两种后端的唯一选择点
 src/db/       看板访问客户端（只调用 gate_db.py，不自己写 SQL）

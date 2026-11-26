@@ -49,14 +49,14 @@ for (const name of ["typebox", "@earendil-works"]) {
 }
 
 const loaded = [];
-for (const entry of ["extensions/board_digest.ts", "extensions/orchestrator-guard.ts", "extensions/orchestrator-patrol.ts", "extensions/kali-exec.ts", "ctf-gate/ctf-gate.ts"]) {
+for (const entry of ["extensions/board_digest.ts", "extensions/orchestrator-guard.ts", "extensions/orchestrator-patrol.ts", "ctf-gate/ctf-gate.ts"]) {
   const abs = path.join(pkg, entry);
   stripTypeScriptTypes(fs.readFileSync(abs, "utf8"), { mode: "transform" });
   const mod = await import(pathToFileURL(abs).href);
   assert.equal(typeof mod.default, "function", `${entry} 应有 default 导出`);
   loaded.push(entry);
 }
-pass(`5 个扩展入口可加载（${loaded.length}）`);
+pass(`4 个扩展入口可加载（${loaded.length}）`);
 
 // 用一个假 pi 验证 registerTool / on 注册
 const reg = { tools: [], hooks: [], commands: [] };
