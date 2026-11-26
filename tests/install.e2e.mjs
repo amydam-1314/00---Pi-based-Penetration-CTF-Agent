@@ -66,6 +66,49 @@ digest.default(fakePi);
 assert.deepEqual(reg.tools, ["board_digest"]);
 pass("board_digest 注册为模型可调用工具");
 
+// ---------- 2b) 注入断言：ctf-gate 绑定题目后，bash 命令必须带上黑板环境变量 ----------
+{
+  const chal = path.join(tmp, "inj-proj", "challs", "t-1");
+  const shared = path.join(tmp, "inj-proj", "_shared");
+  fs.mkdirSync(chal, { recursive: true });
+  fs.mkdirSync(shared, { recursive: true });
+  fs.mkdirSync(path.join(tmp, "inj-proj", "ctf-boards"), { recursive: true });
+  fs.writeFileSync(path.join(chal, ".ctf-gate"), "");
+  fs.copyFileSync(path.join(pkg, "db", "gate_db.py"), path.join(shared, "gate_db.py"));
+  for (const f of fs.readdirSync(path.join(pkg, "scripts"))) {
+    if (f.endsWith(".sh")) fs.copyFileSync(path.join(pkg, "scripts", f), path.join(shared, f));
+  }
+  process.env.CTF_PROJECT_ROOT = path.join(tmp, "inj-proj");
+  process.env.PI_CTF_EXEC_BACKEND = "local";
+
+  const hooks = new Map();
+  const gateMod = await import(pathToFileURL(path.join(pkg, "ctf-gate/ctf-gate.ts")).href);
+  gateMod.default({ on: (n, f) => hooks.set(n, f), registerCommand: () => {}, registerTool: () => {} });
+  const ctx = {
+    cwd: chal,
+    hasUI: false,
+    ui: { notify: () => {} },
+    sessionManager: { getSessionFile: () => path.join(tmp, "s.jsonl"), getSessionId: () => "e2e", getHeader: () => ({}) },
+  };
+  await hooks.get("session_start")({}, ctx);
+  await hooks.get("before_agent_start")({ systemPrompt: "", messageType: "user", prompt: "x" }, ctx);
+
+  const input = { command: "./board.sh show" };
+  const res = await hooks.get("tool_call")({ toolName: "bash", input }, ctx);
+  if (res !== undefined) console.log("   [debug] tool_call 返回:", JSON.stringify(res).slice(0, 240));
+  assert.equal(res, undefined, "绑定题目后 bash 应放行而不是被拦");
+  const injected = String(input.command);
+  for (const k of ["CTF_GATE_DIR=", "CTF_GATE_DB=", "CTF_GATE_PY="]) {
+    assert.ok(injected.includes(k), `注入的命令缺少 ${k}`);
+  }
+  assert.ok(/^cd '/.test(injected), `local 后端应以 cd ' 开头：${injected.slice(0, 60)}`);
+  assert.ok(!/ssh|wsl\.exe/.test(injected), "local 后端不应出现 ssh/wsl.exe");
+  pass("ctf-gate 注入：黑板环境变量齐全，且 local 后端不引入 ssh/wsl");
+
+  delete process.env.PI_CTF_EXEC_BACKEND;
+  process.env.CTF_PROJECT_ROOT = proj;
+}
+
 // ---------- 3) agents / profiles 加载 ----------
 const agents = fs.readdirSync(path.join(pkg, "agents")).filter((f) => f.endsWith(".md"));
 assert.ok(agents.length >= 6, `agents 数量不足：${agents.length}`);
