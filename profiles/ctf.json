@@ -1,0 +1,27 @@
+{
+  "name": "ctf",
+  "marker": ".ctf-gate",
+  "boardDb": [
+    "gate/gate.sqlite",
+    "boards"
+  ],
+  "rules": [
+    "gate/rules.md"
+  ],
+  "budget": "gate/turn_limit",
+  "validate": "ctf",
+  "transport": "local",
+  "fields": [
+    "challenge",
+    "params",
+    "verified",
+    "falsified",
+    "hypotheses",
+    "tooling",
+    "next",
+    "flags",
+    "coverage",
+    "angles",
+    "outcomes"
+  ]
+}

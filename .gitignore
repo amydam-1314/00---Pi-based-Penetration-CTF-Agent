@@ -1,0 +1,19 @@
+node_modules/
+# 运行数据 —— 绝不入库
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+env.json
+*.kali_pw
+sessions/
+ai_logs/
+backups/
+artifacts/
+*.log
+# 生成产物
+dist/
+tmp/
+
+# 编辑期备份
+*.bak-*
+*.orig

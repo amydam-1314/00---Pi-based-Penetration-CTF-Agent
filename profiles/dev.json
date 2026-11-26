@@ -1,0 +1,10 @@
+{
+  "name": "dev",
+  "marker": ".board",
+  "boardDb": [".board/board.sqlite"],
+  "rules": ["BOARD_RULES.md", ".board/rules.md"],
+  "budget": null,
+  "validate": "none",
+  "transport": "local",
+  "fields": ["verified", "falsified", "hypotheses", "next", "coverage", "angles", "outcomes"]
+}
