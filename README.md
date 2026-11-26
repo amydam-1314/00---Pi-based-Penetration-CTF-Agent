@@ -62,7 +62,18 @@ bash tests/run-all.sh        # 语法 + 单元测试 + 迁移自检
 bash scripts/gate_selftest.sh # 闸门与路径的端到端自检（需要项目目录）
 ```
 
-## 扩展如何进到子 agent
+## 扩展如何进到子 agent（实测约束，务必遵守）
+
+1. **前台子进程（`async:false`）不加载父会话的 ambient 扩展**——实测报错
+   `web_search, web_fetch, browser` 不可用，`ctf` 子 agent 因此拿不到闸门。
+   **子 agent 一律用 `async: true`**（后台），ambient 扩展才会传下去；
+   若必须前台，只能在 agent frontmatter 里用 `subagentOnlyExtensions` / `extensions` /
+   `tools` 显式列出扩展**路径**（该字段不做 `~` 或相对解析，写的是绝对路径 → 不可迁移）。
+2. **pi-subagents 不会自动发现包内 `agents/` 与 `profiles/`**：安装后由 `scripts/install.sh`
+   把它们复制到 `~/.pi/agent/agents/`、`~/.pi/agent/profiles/`。不做这一步，
+   `subagent({agent:"ctf"})` 会提示找不到该 agent。
+
+## 扩展如何进到子 agent（实现细节）
 
 `subagentOnlyExtensions` 里的路径由 pi-subagents **原样**传给子进程的 `pi -e`，不做 `~` 展开或相对解析——
 所以那里不适合写路径。本包的做法是：**扩展以 package 形式安装**（`pi install <pkg>`），
