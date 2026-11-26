@@ -24,7 +24,12 @@ if [ ! -d "$AGENT/policies" ]; then
   _up="$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
   [ -n "$_up" ] && AGENT="$(wslpath -u "$_up" 2>/dev/null)/.pi/agent"
 fi
-[ -d "$AGENT/policies" ] || { echo "[selftest] 找不到扩展目录（policies/roots.ts）" >&2; exit 2; }
+# 扩展位置：包布局（$ROOT/ctf-gate + $ROOT/src）优先；现网布局回退到 $AGENT
+GATE_TS="$ROOT/ctf-gate/ctf-gate.ts"
+[ -f "$GATE_TS" ] || GATE_TS="$GATE_TS"
+ROOTS_TS="$ROOT/src/paths/roots.ts"
+[ -f "$ROOTS_TS" ] || ROOTS_TS="$AGENT/policies/roots.ts"
+[ -f "$GATE_TS" ] || { echo "[selftest] 找不到 ctf-gate.ts（包内 ctf-gate/ 或 agent 目录）" >&2; exit 2; }
 PASS=0; FAIL=0; SKIP=0
 ok()   { PASS=$((PASS+1)); printf '  PASS  %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  FAIL  %s\n' "$1"; [ -n "${2:-}" ] && printf '        %s\n' "$2"; }
@@ -41,7 +46,10 @@ cleanup() { [ "$KEEP" = "1" ] || rm -rf "$BASE"; }
 trap cleanup EXIT
 echo "临时目录: $BASE"
 
+# gate_db.py 位置：项目 _shared/ 优先（现网布局），其次包内 db/（package 布局）
 GD="$ROOT/_shared/gate_db.py"
+[ -f "$GD" ] || GD="$ROOT/db/gate_db.py"
+[ -f "$GD" ] || { echo "[selftest] 找不到 gate_db.py（试过 _shared/ 与 db/）" >&2; exit 2; }
 NODE="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || echo /mnt/d/node。js/node.exe)"
 
 # ---------- S1 根解析四分支 + 空格/中文 ----------
@@ -49,7 +57,8 @@ echo "[S1] 根解析四分支"
 mkcfg() { mkdir -p "$1"; printf '%s' "$2" > "$1/env.json"; }
 PROJ="$BASE/项目 副本"; mkdir -p "$PROJ/_shared" "$PROJ/challs/t-01"
 printf '{"kind":"ctf-project"}' > "$PROJ/ctf.project.json"
-cp "$GD" "$ROOT/_shared/root.sh" "$PROJ/_shared/"; mkdir -p "$PROJ/ctf-boards"
+RS="$ROOT/_shared/root.sh"; [ -f "$RS" ] || RS="$ROOT/scripts/root.sh"
+cp "$GD" "$RS" "$PROJ/_shared/"; mkdir -p "$PROJ/ctf-boards"
 CFG_NONE="$BASE/cfg-none"; mkcfg "$CFG_NONE" '{"note":"no projectRoot"}'
 CFG_BAD="$BASE/cfg-bad";   mkcfg "$CFG_BAD" "{\"projectRoot\":\"$BASE/不存在的目录\"}"
 CFG_CONF="$BASE/cfg-conf"; mkdir -p "$BASE/别处"; mkcfg "$CFG_CONF" "{\"projectRoot\":\"$BASE/别处\"}"
@@ -77,7 +86,8 @@ expect_contains "E 找不到根→报错" "$(err_of /tmp "$CFG_NONE" "")" "找�
 # ---------- S2 挂载映射语义 ----------
 echo "[S2] mount 映射（最长前缀/边界/大小写/无匹配）"
 if "$NODE" --version >/dev/null 2>&1; then
-  cp "$AGENT/policies/roots.ts" "$BASE/roots.ts"
+  cp "$ROOTS_TS" "$BASE/roots.ts"
+  [ -d "$ROOT/src" ] && cp -r "$ROOT/src" "$BASE/src" 2>/dev/null
   cat > "$BASE/map.mjs" <<'JS'
 const { mapMount } = await import("./roots.ts");
 const env = { mounts: [
@@ -111,7 +121,7 @@ TDB="$BASE/board/gate.sqlite"; mkdir -p "$BASE/board"
 python3 "$GD" --db "$TDB" init >/dev/null 2>&1
 # 板 JSON 按 gate_db.py 的 BOARD_FIELDS 动态生成（契约变了也不用改测试；缺键会撞 canonical_board 的 KeyError）
 board_json() {
-  python3 - "$ROOT/_shared/gate_db.py" "$1" <<'PYEOF'
+  python3 - "$GD" "$1" <<'PYEOF'
 import re, sys, json
 src = open(sys.argv[1], encoding="utf-8").read()
 m = re.search(r"BOARD_FIELDS\s*=\s*\(([^)]*)\)", src)
@@ -132,17 +142,19 @@ expect_eq "S3 正确 rev 写入 → rev=2" "$(rev_of)" "2"
 
 # ---------- S4 run: 命名空间契约 ----------
 echo "[S4] run.sh：裸 tag 放行 / run:<tag> 拦 / 超时登记 run:<tag>"
+RSH="$ROOT/_shared/run.sh"; [ -f "$RSH" ] || RSH="$ROOT/scripts/run.sh"
+[ -f "$RSH" ] || { skip "S4 找不到 run.sh"; RSH=""; }
 TDIR="$BASE/课 题 01"; mkdir -p "$TDIR/gate"
 export CTF_GATE_DIR="$TDIR/gate" CTF_GATE_DB="$TDB" CTF_GATE_PY="$PROJ/_shared/gate_db.py"
 python3 "$GD" --db "$TDB" falsify "run:ns-block" "selftest" "x" >/dev/null 2>&1
 python3 "$GD" --db "$TDB" falsify "ns-plain" "selftest" "x" >/dev/null 2>&1
-out1="$(cd "$TDIR" && bash "$ROOT/_shared/run.sh" ns-block 5 -- echo SHOULD_NOT_RUN 2>&1)"; rc1=$?
+out1="$(cd "$TDIR" && bash "$RSH" ns-block 5 -- echo SHOULD_NOT_RUN 2>&1)"; rc1=$?
 expect_eq "S4 run:<tag> 已证伪 → 拒绝(exit 2)" "$rc1" "2"
 expect_contains "S4 拒绝原因可读" "$out1" "已被证伪"
-out2="$(cd "$TDIR" && bash "$ROOT/_shared/run.sh" ns-plain 5 -- echo PLAIN_OK 2>&1)"; rc2=$?
+out2="$(cd "$TDIR" && bash "$RSH" ns-plain 5 -- echo PLAIN_OK 2>&1)"; rc2=$?
 expect_eq "S4 裸 tag 不拦同名 run(exit 0)" "$rc2" "0"
 expect_contains "S4 裸 tag 实际执行" "$out2" "PLAIN_OK"
-(cd "$TDIR" && bash "$ROOT/_shared/run.sh" ns-slow 1 -- sleep 3 >/dev/null 2>&1); rc3=$?
+(cd "$TDIR" && bash "$RSH" ns-slow 1 -- sleep 3 >/dev/null 2>&1); rc3=$?
 expect_eq "S4 超时 → exit 124" "$rc3" "124"
 cond="$(python3 "$GD" --db "$TDB" falsified-get "run:ns-slow" 2>/dev/null | head -1)"
 expect_contains "S4 超时登记为 run:<tag>" "$cond" "timeout:1s"
@@ -154,7 +166,11 @@ skip "连续不写板触发闸门 —— 需 ctf-gate 扩展在场（重启后�
 
 # ---------- S6 与迁移前实现的一致性 ----------
 echo "[S6] 迁移前后路径函数一致性"
-BAK="$(ls -1 "$AGENT/ctf-gate/ctf-gate.ts.bak-migrate-"* 2>/dev/null | tail -1)"
+if [ "$GATE_TS" = "$ROOT/ctf-gate/ctf-gate.ts" ]; then
+  BAK=""
+else
+  BAK="$(ls -1 "$AGENT/ctf-gate/ctf-gate.ts.bak-migrate-"* 2>/dev/null | tail -1)"
+fi
 if [ -n "${BAK:-}" ] && "$NODE" --version >/dev/null 2>&1; then
   mkdir -p "$BASE/parity/node_modules/typebox" "$BASE/parity/node_modules/@earendil-works/pi-coding-agent"
   printf 'export const Type = new Proxy({}, { get: () => (o) => o || {} });\n' > "$BASE/parity/node_modules/typebox/index.js"
@@ -162,8 +178,9 @@ if [ -n "${BAK:-}" ] && "$NODE" --version >/dev/null 2>&1; then
   printf 'export const createLocalBashOperations = () => ({});\n' > "$BASE/parity/node_modules/@earendil-works/pi-coding-agent/index.js"
   printf '{"name":"@earendil-works/pi-coding-agent","type":"module","main":"index.js"}\n' > "$BASE/parity/node_modules/@earendil-works/pi-coding-agent/package.json"
   mkdir -p "$BASE/parity/policies" "$BASE/parity/ctf-gate"
-  cp "$AGENT/policies/"*.ts "$BASE/parity/policies/"
-  cp "$BAK" "$BASE/parity/ctf-gate/old.ts"; cp "$AGENT/ctf-gate/ctf-gate.ts" "$BASE/parity/ctf-gate/new.ts"
+  cp "$AGENT/policies/"*.ts "$BASE/parity/policies/" 2>/dev/null
+  [ -d "$ROOT/src" ] && cp -r "$ROOT/src" "$BASE/parity/src" 2>/dev/null
+  cp "$BAK" "$BASE/parity/ctf-gate/old.ts"; cp "$GATE_TS" "$BASE/parity/ctf-gate/new.ts"
   for f in old new; do
     [ -s "$BASE/parity/ctf-gate/$f.ts" ] || { bad "S6 源码复制失败：$f.ts" ""; }
   done
@@ -203,8 +220,9 @@ if "$NODE" --version >/dev/null 2>&1; then
   printf '{"name":"typebox","type":"module","main":"index.js"}\n' > "$S7/node_modules/typebox/package.json"
   printf 'export const createLocalBashOperations = () => ({});\nexport const createLocalPowerShellOperations = () => ({});\n' > "$S7/node_modules/@earendil-works/pi-coding-agent/index.js"
   printf '{"name":"@earendil-works/pi-coding-agent","type":"module","main":"index.js"}\n' > "$S7/node_modules/@earendil-works/pi-coding-agent/package.json"
-  cp "$AGENT/policies/"*.ts "$S7/policies/"
-  cp "$AGENT/ctf-gate/ctf-gate.ts" "$S7/ctf-gate/gate.ts"
+  cp "$AGENT/policies/"*.ts "$S7/policies/" 2>/dev/null
+  [ -d "$ROOT/src" ] && cp -r "$ROOT/src" "$S7/src" 2>/dev/null
+  cp "$GATE_TS" "$S7/ctf-gate/gate.ts"
   # 把顶层 function 全部导出，然后逐个调用，只对 ReferenceError 判失败
   python3 - "$S7/ctf-gate/gate.ts" <<'PYEOF'
 import re, sys
@@ -247,31 +265,28 @@ else
 fi
 
 # ---------- S8 看板字段契约对齐 ----------
-echo "[S8] 扩展 BOARD_FIELDS 与 gate_db.py 是否一致（漂移会静默锁死所有工具）"
-fields_of() { python3 - "$1" <<'PYEOF'
-import re, sys
-src = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r"BOARD_FIELDS\s*=\s*[\[(]([^\]\)]*)[\])]", src)
-print(",".join(sorted(x.strip().strip('"\'') for x in m.group(1).split(",") if x.strip())) if m else "NOTFOUND")
-PYEOF
-}
-ext_fields="$(fields_of "$AGENT/ctf-gate/ctf-gate.ts")"
-db_fields="$(fields_of "$ROOT/_shared/gate_db.py")"
-if [ "$ext_fields" = "NOTFOUND" ] || [ "$db_fields" = "NOTFOUND" ]; then
-  bad "S8 找不到 BOARD_FIELDS 定义" "ext=$ext_fields db=$db_fields"
-elif [ "$ext_fields" = "$db_fields" ]; then
-  ok "S8 字段一致（$db_fields）"
+echo "[S8] 字段契约：扩展不维护静态表，且 gate_db.py fields 可用"
+if grep -q "const BOARD_FIELDS = \[" "$GATE_TS" 2>/dev/null; then
+  bad "S8 扩展仍有静态 BOARD_FIELDS" "应从 gate_db.py fields 读取"
 else
-  bad "S8 字段不一致" "扩展=[$ext_fields] gate_db=[$db_fields]"
+  ok "S8 扩展无静态字段表"
 fi
+fields_json="$(python3 "$GD" fields 2>/dev/null)"
+case "$fields_json" in
+  *'"fields"'*)
+    ok "S8 fields 接口可用"
+    for need in challenge params verified falsified hypotheses tooling next flags; do
+      case "$fields_json" in *"\"$need\""*) ;; *) bad "S8 字段接口缺 $need" "$fields_json";; esac
+    done ;;
+  *) bad "S8 fields 接口不可用" "${fields_json:-无输出}" ;;
+esac
 
-# ---------- S9 关键常量与迁移前一致 ----------
 echo "[S9] 闸门关键常量（迁移前 vs 当前）"
 BAK2="$(ls -1 "$AGENT/ctf-gate/ctf-gate.ts.bak-migrate-"* 2>/dev/null | tail -1)"
 if [ -n "${BAK2:-}" ]; then
   const_of() { grep -oE "$2 = [0-9]+;" "$1" 2>/dev/null | head -1 | grep -oE "[0-9]+"; }
   for c in WORK_THRESHOLD; do
-    a="$(const_of "$BAK2" "WORK_THRESHOLD")"; b="$(const_of "$AGENT/ctf-gate/ctf-gate.ts" "WORK_THRESHOLD")"
+    a="$(const_of "$BAK2" "WORK_THRESHOLD")"; b="$(const_of "$GATE_TS" "WORK_THRESHOLD")"
     expect_eq "S9 $c 未变（迁移前=$a）" "$b" "$a"
   done
 else

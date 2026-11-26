@@ -646,7 +646,8 @@ function suggestField(k: string): string | null {
   const low = k.toLowerCase();
   if (BOARD_ALIAS[k] || BOARD_ALIAS[low]) return BOARD_ALIAS[k] ?? BOARD_ALIAS[low];
   let best: string | null = null, bestD = 3;
-  for (const f of BOARD_FIELDS) {
+  const known = (() => { try { return boardFields(); } catch { return []; } })();
+  for (const f of known) {
     const d = editDistance(low, f);
     if (d < bestD) { bestD = d; best = f; }
   }
