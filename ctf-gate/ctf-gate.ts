@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { isContestRoot } from "../src/paths/ctf-directory.ts";
 import { resolveRoots, mapMount, loadEnv } from "../src/paths/roots.ts";
-import { createAdapter, loadConfig } from "../src/exec/index.ts";
+import { createAdapter, loadConfig, defaultBackendFor } from "../src/exec/index.ts";
 import { profileAt } from "../src/config/profiles.ts";
 
 /** 机器配置（kali 主机、mounts）；不写死在源码里 */
@@ -255,12 +255,22 @@ function gatePy(): string {
   if (!fs.existsSync(cand)) throw new Error(`${cand} 不存在（项目内资源应相对项目根；检查 _shared 是否完整）`);
   return cand.replace(/\\/g, "/");
 }
+/**
+ * 选 Python 解释器：Windows 上 `python3` 常是 Microsoft Store 的占位别名——
+ * 退出码 0 但什么都不执行，会让 init/snapshot 静默失败。所以要求探测能真的跑出 sqlite3 版本。
+ */
 function pyBin(): string {
-  for (const c of ["python3", "python", "py"]) {
-    const r = spawnSync(c, ["-c", "import sqlite3,sys;sys.exit(0)"], { encoding: "utf8" });
-    if (r.status === 0) return c;
+  const order = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];
+  for (const c of order) {
+    const r = spawnSync(c, ["-c", "import sqlite3;print(sqlite3.sqlite_version)"], {
+      encoding: "utf8",
+      timeout: 8000,
+      windowsHide: true,
+    });
+    const out = String(r.stdout ?? "").trim();
+    if (r.status === 0 && /^\d+\.\d+/.test(out)) return c;
   }
-  return "python3";
+  throw new Error("找不到可用的 Python（需要带 sqlite3 的真实解释器；Windows 上注意 python3 占位别名）");
 }
 function dbRun(args: string[], stdin?: string): { status: number; stdout: string; stderr: string } {
   const db = dbPath();
@@ -658,6 +668,12 @@ function suggestField(k: string): string | null {
 export function validateBoard(b: unknown): string[] {
   const errs: string[] = [];
   if (!b || typeof b !== "object" || Array.isArray(b)) return ["顶层必须是 JSON 对象"];
+  let fields: string[];
+  try {
+    fields = boardFields();
+  } catch (e: any) {
+    return [`看板字段契约不可用（gate_db.py fields）：${e?.message ?? e}`];
+  }
   const o = b as Record<string, any>;
   for (const k of Object.keys(o)) {
     if (fields.includes(k)) continue;
@@ -706,7 +722,8 @@ export function validateBoard(b: unknown): string[] {
 
 function boardProblems(cwd: string): string | null {
   const { json, errors } = readBoard(cwd);
-  if (json === null) return `${dbPath()} 缺失或 dump 失败：先修正黑板（唯一事实源）。`;
+  if (json === null)
+    return `${dbPath()} 缺失或 dump 失败：先修正黑板（唯一事实源）。\n底层错误：${(errors[0] || "无输出").slice(0, 300)}`;
   if (errors.length) return "黑板契约错误：\n- " + errors.join("\n- ");
   return null;
 }
@@ -718,13 +735,18 @@ function boardRev(): string {
 
 function readBoard(_cwd: string): { raw: string; json: Record<string, unknown> | null; errors: string[] } {
   const r = dbRun(["snapshot"]);
+  if (process.env.PI_CTF_DEBUG_BOARD === "1")
+    console.error(`[board-debug] status=${r.status} outLen=${r.stdout.length} head=${JSON.stringify(r.stdout.slice(0, 80))} err=${JSON.stringify(r.stderr.slice(0, 120))}`);
   if (r.status !== 0) return { raw: "", json: null, errors: [r.stderr || "snapshot failed"] };
   try {
     const p = JSON.parse(r.stdout);
     const json = p.board as Record<string, unknown>;
     if (!Number.isSafeInteger(p.rev) || p.rev < 0 || !json || typeof json !== "object") throw new Error("invalid snapshot");
     return { raw: String(p.rev), json, errors: validateBoard(json) };
-  } catch { return { raw: "", json: null, errors: ["snapshot JSON 非法"] }; }
+  } catch (e: any) {
+    if (process.env.PI_CTF_DEBUG_BOARD === "1") console.error(`[board-debug] parse threw: ${e?.message ?? e}`);
+    return { raw: "", json: null, errors: ["snapshot JSON 非法"] };
+  }
 }
 
 function writeBoardJson(body: string, expectedRev: string): string | undefined {
@@ -1074,7 +1096,10 @@ function withGateEnv(cmd: string): string {
   const adapter = createAdapter({
     config: cfg,
     profileTransport: "local",
-    override: (process.env.PI_CTF_EXEC_BACKEND as "local" | "ssh" | undefined) ?? undefined,
+    // 平台默认：Linux/VM → local；Windows（无原生 bash）→ wsl；显式配置/环境变量优先
+    override:
+      (process.env.PI_CTF_EXEC_BACKEND as "local" | "ssh" | "wsl" | undefined) ??
+      defaultBackendFor(process.platform, cfg.execution?.backend),
   });
   const env: Record<string, string> = {
     CTF_GATE_DIR: G(),

@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type Backend = "local" | "ssh";
+export type Backend = "local" | "ssh" | "wsl";
 
 export interface SshCfg {
   target?: string;
@@ -26,8 +26,15 @@ export interface MountCfg {
   to: string;
 }
 
+export interface WslCfg {
+  /** WSL 发行版名；不填用默认发行版 */
+  distro?: string;
+  /** 额外 wsl 参数，如 ["--user","kali"] */
+  extraArgs?: string[];
+}
+
 export interface ExecConfig {
-  execution?: { backend?: Backend; ssh?: SshCfg };
+  execution?: { backend?: Backend; ssh?: SshCfg; wsl?: WslCfg };
   mounts?: MountCfg[];
 }
 
@@ -64,6 +71,26 @@ export function mapPath(p: string, mounts: MountCfg[] = []): string | null {
     }
   }
   return null;
+}
+
+
+/** 把 env 里看起来是主机绝对路径的值映射到目标机（映射不到就原样保留，让下游报错） */
+function mapEnvValues(
+  env: Record<string, string> | undefined,
+  mapper: (p: string) => string | null,
+): Record<string, string> | undefined {
+  if (!env) return env;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) {
+    const looksLikeHostPath = /^[A-Za-z]:[\\/]/.test(v) || v.startsWith("/");
+    if (looksLikeHostPath) {
+      const mapped = mapper(v);
+      out[k] = mapped ?? v;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 function envExports(env?: Record<string, string>): string {
@@ -112,7 +139,7 @@ export class SshAdapter {
         `工作目录未覆盖在 mounts 里：${opts.cwd}。现有映射：${JSON.stringify(this.mounts)}`,
       );
     }
-    const inner = `cd ${q(remoteCwd)} && ${envExports(opts.env)}${cmd}`;
+    const inner = `cd ${q(remoteCwd)} && ${envExports(mapEnvValues(opts.env, (p) => mapPath(p, this.mounts)))}${cmd}`;
 
     if (this.cfg.identityFile) {
       const args = ["-i", q(this.cfg.identityFile), "-o", "BatchMode=yes", ...(this.cfg.extraArgs ?? [])];
@@ -132,6 +159,37 @@ export class SshAdapter {
   }
 }
 
+/**
+ * WSL 后端：Pi 在 Windows、shell 在 WSL 时使用。
+ * 命令经 `wsl.exe -d <distro> --cd <映射后路径> -- bash -lc` 执行；
+ * Windows 盘符路径按 mounts（或默认 D:/ → /mnt/d）映射，映射不到就报错。
+ */
+export class WslAdapter {
+  readonly backend: Backend = "wsl";
+  private cfg: WslCfg;
+  private mounts: MountCfg[];
+  constructor(cfg: WslCfg, mounts: MountCfg[]) {
+    this.cfg = cfg;
+    this.mounts = mounts;
+  }
+  private map(p: string): string | null {
+    const m = mapPath(p, this.mounts);
+    if (m) return m;
+    const drive = /^([A-Za-z]):[\\/](.*)$/.exec(norm(p));
+    return drive ? `/mnt/${drive[1].toLowerCase()}/${drive[2]}` : norm(p);
+  }
+  wrap(cmd: string, opts: WrapOptions): Wrapped {
+    const target = this.map(opts.cwd);
+    if (!target) throw new Error(`wsl 后端：无法映射工作目录 ${opts.cwd}（配 execution.wsl 或 mounts）`);
+    const inner = `${envExports(mapEnvValues(opts.env, (p) => this.map(p)))}${cmd}`;
+    const args = [this.cfg.distro ? `-d ${this.cfg.distro}` : "", ...(this.cfg.extraArgs ?? []), `--cd ${q(target)}`, "--", "bash", "-lc", q(inner)]
+      .filter(Boolean)
+      .join(" ");
+    const command = `wsl.exe ${args}`;
+    return { command, display: command, backend: this.backend };
+  }
+}
+
 export interface AdapterInput {
   config: ExecConfig;
   /** profile 的 transport；未声明则按 local */
@@ -147,12 +205,19 @@ export function createAdapter(input: AdapterInput): LocalAdapter | SshAdapter {
     input.config.execution?.backend ??
     (input.profileTransport === "kali" ? "ssh" : "local");
   if (backend === "ssh") return new SshAdapter(input.config.execution?.ssh ?? {}, input.config.mounts ?? []);
+  if (backend === "wsl") return new WslAdapter(input.config.execution?.wsl ?? {}, input.config.mounts ?? []);
   return new LocalAdapter();
 }
 
 /** 便于测试：只有 backend 名字 */
 export function chooseBackend(input: AdapterInput): Backend {
   return createAdapter(input).backend;
+}
+
+/** 需要外部 shell 时（Windows）自动建议后端：配置优先，其次平台默认 */
+export function defaultBackendFor(platform: NodeJS.Platform, configured?: Backend): Backend {
+  if (configured) return configured;
+  return platform === "win32" ? "wsl" : "local";
 }
 
 /** 读 env.json（缺文件返回 {}，坏 JSON 抛错——不静默） */

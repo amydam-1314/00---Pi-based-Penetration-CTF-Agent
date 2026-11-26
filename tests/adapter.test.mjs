@@ -45,4 +45,17 @@ assert.equal(mapPath("/srv/up/x", mounts), "/remote/up/x");                // �
 assert.equal(mapPath("/nope/x", mounts), null);
 pass("路径映射：边界/最长前缀/大小写/无匹配=null");
 
+// 6) wsl 后端：Windows 盘符路径映射到 /mnt/<drive>
+const wsl = createAdapter({ config: { execution: { backend: "wsl", wsl: { distro: "Arch" } } } });
+const ww = wsl.wrap("echo ok", { cwd: "D:/2026/kit/challs/t-01", env: { A: "b" } });
+assert.equal(ww.backend, "wsl");
+assert.match(ww.command, /^wsl\.exe -d Arch --cd '\/mnt\/d\/2026\/kit\/challs\/t-01' -- bash -lc /);
+pass("wsl 后端：盘符路径自动映射 /mnt/d 并生成 wsl.exe 命令");
+
+const { defaultBackendFor } = await import("../src/exec/adapter.ts");
+assert.equal(defaultBackendFor("win32"), "wsl");
+assert.equal(defaultBackendFor("linux"), "local");
+assert.equal(defaultBackendFor("win32", "ssh"), "ssh");
+pass("平台默认后端：Windows→wsl、Linux→local，显式配置优先");
+
 console.log(`\n${n} adapter checks passed`);

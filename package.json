@@ -2,12 +2,21 @@
   "name": "pi-ctf-kit",
   "version": "0.1.0",
   "description": "CTF/渗透工作台：闸门、黑板、看板工具与执行后端（Pi package）",
-  "keywords": ["pi-package", "ctf", "pentest"],
+  "keywords": [
+    "pi-package",
+    "ctf",
+    "pentest"
+  ],
   "license": "MIT",
   "type": "module",
   "pi": {
-    "extensions": ["./extensions"],
-    "prompts": ["./prompts/*.md"]
+    "extensions": [
+      "./extensions",
+      "./ctf-gate/ctf-gate.ts"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
