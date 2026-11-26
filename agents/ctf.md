@@ -31,7 +31,7 @@ defaultProgress: true
 - 只解本题；平台登录/取题/批量下载不属于本角色。先复用已有附件，不自行登录或下载整场比赛。
 - **开工两件事**：先读 `gate/rules.md`（平台约束：谁调 API、容器上限、flag 正则、红线；缺失则按「只读、不改靶场状态」执行），再 `./board.sh show` 读本题棋盘；`gate/run.json` 有值才用其中的地址/时间，没有就自己按题面确认。
 
-- BOARD 的字段契约参照 `C:/Users/25715/.pi/agent/ctf-gate/BOARD.template.json`；每次写前先读当前题 BOARD，不用旧模板覆盖已有进展。tooling 必须是对象数组，如 `[{"name":"sagemath"}]`，不是 `["sagemath"]`。next 才是字符串数组；其它列表 verified/falsified/hypotheses/flags 都是对象数组。
+- BOARD 的字段契约以 `gate_db.py fields` 为准（`python3 $CTF_GATE_PY fields`）；每次写前先读当前题 BOARD，不用旧模板覆盖已有进展。tooling 必须是对象数组，如 `[{"name":"sagemath"}]`，不是 `["sagemath"]`。next 才是字符串数组；其它列表 verified/falsified/hypotheses/flags 都是对象数组。
 - 连续两次相同契约/路径报错：用 `contact_supervisor` + `need_decision` 报原错误和路径并等待；不要反复写同一错误模板。
 - **API/网络错误立即收口**：模型返回 429 限流、余额不足（402/403）、网络超时时，不要本地重试烧 token——先把已有结论写进黑板（verified/next），再 `contact_supervisor` 上报错误类型，由主 agent 决定换 provider、降并发还是暂停。
 - **长跑接力（省钱硬纪律）**：输入 token 随轮数平方增长，一次跑 45+ 轮就是最烧钱的模式。**接近 45 轮（闸门软限 45 + 缓冲 10，第 56 轮起硬拦）或上下文明显变重时，主动收口**：把当前进展、verified 结论、下一步计划写进 BOARD 后正常结束，让主 agent 派接力（新 run 开局只需读板子）。这不是放弃——板子就是为此设计的；硬跑到底既慢又贵还容易在末段丢失早期纪律。**冲刺豁免**：若正处于关键验证最后几步（预计 ≤5 轮内出 flag/出阶段结果），可冲刺到结果落地再收口，不要在半步之遥时硬切。**交接清单（收口前必须写进板子）**：① 当前假设 tag + 推进到哪一步；② next 写清下一棒的第一动作和关键文件路径（脚本/证据/附件）；③ 已验证的中间结论进 verified；④ 刚死掉的路进 falsified（带 condition）——下一棒靠这些避免重走弯路；⑤ 脚本/产物已落盘的写明路径，不要把内容粘进板子。
@@ -285,6 +285,6 @@ check.sh <stage>         # 只读校验 stages.n，非"通过"退出非零
   - 执行侧（local = 与宿主同一路径；ssh = mounts 映射后的远端同一棵树）
   - 主会话 WSL（只读看板用）：`env.json` 的 `mounts` 映射后路径
 - 每道新题在根目录下建**题目名子目录**（如 `pi-ctf/<题目名>/`），内部沿用 `data/`、`gate/`、`solve.sh`、`README.md` 结构；题目名未知时用 `unknown-<短哈希>`。
-- **禁止**把带攻击特征的明文文件（webshell、exp 源码、明文 `<?php system(...)` 等）落到 `C:\Users\...`、桌面、下载目录或任何 Windows 用户盘；payload 只在 Linux `/tmp`（或 Kali）运行时生成。
+- **禁止**把带攻击特征的明文文件（webshell、exp 源码、明文 `<?php system(...)` 等）落到用户家目录、桌面、下载目录或任何宿主用户盘；payload 只在执行环境的临时目录或题目录 `data/` 运行时生成。
 - 仅当用户在当次对话中**显式指定**其他路径时，才覆盖上述默认值。
 - 迁移/清理后，必须在 `README.md` 记录最终位置与旧位置删除情况。

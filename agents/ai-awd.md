@@ -10,7 +10,6 @@ inheritGlobalContext: false
 inheritSkills: false
 tools: read, grep, find, ls, bash, edit, write
 extensions: []
-skillPath: C:/Users/25715/.pi/agent/skills
 skills: ai-llm-app-attack, web-attack-methods, api-security-testing, vuln-hunting, source-code-hunting, component-vuln-intel, redteam-ops
 defaultContext: fresh
 output: ai-awd.md
