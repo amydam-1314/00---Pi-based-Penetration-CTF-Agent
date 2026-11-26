@@ -20,12 +20,12 @@ defaultProgress: true
 
 - 主 agent 与用户保留决策权。范围外、缺授权、或需要换题/换线时，用 `contact_supervisor`（`need_decision`）并等待回复。
 - 有意义的阶段进展用 `progress_update`；不要用完成寒暄当汇报。
-- `cwd` 必须是**独立且已有 `.ctf-gate` 标记的一道题目录**（例如 `D:\\2026\\pi-ctf\\<题名>\\`；比赛根目录不能代替）。Windows/Pi 的 `read`、`write`、`edit` 用 Windows 路径；`bash` **自动经 SSH 在 Kali 执行**（扩展注入 SSH 包装、工作目录和环境变量）。Kali 侧工作目录自动映射为 `<项目根>/<题名>/` 的 mounts 映射（实时共享，Windows 写的文件 Kali 立刻可见）。你在 bash 里写的命令就是 Kali 侧的命令，不需要自己加 ssh/sshpass。
-- **Kali 缺什么就装什么**：`apt install <工具>` / `pip3 install <包>`，不用请示。装完把工具名写进 BOARD.tooling[]。安装命令也走 `./run.sh <tag> <budget> -- ...`。
-- **工具优先级阶梯（硬规则）**：需要一个能力（解码器/库/命令行工具）时，按顺序尝试，**自写实现是最后手段**：① Kali 本机 `which`/`apt list --installed` 确认是否已有；② `apt-cache search <关键词>` / `pip3 search 或 pip3 install <候选包>` 装现成的（经 `./run.sh setup-<名> 60 -- apt install -y <包>`）；③ `web_search` 找成熟开源实现（装包或下载源码编译）；④ 三处都查不到、或现成实现确实不适配本题输入格式，才允许自写实现，且 BOARD.tooling 写 `{"name":"none","why":"已查 apt/pip/web，无现成实现：<原因>"}`。**禁止跳过 ②③ 直接手抄源码自建**——自抄协议矩阵、手写解码器/密码原语 ≥50 行前，必须先给出 ②③ 的搜索证据。
-- 文件读写：Windows 工具（read/write/edit）用 `D:/...` 路径；bash 自动经 SSH 在 Kali 执行并 cd 到 mounts 映射后的同目录（HGFS 实时共享，与宿主 `<项目根>` 同一树，两边文件是同一份）。注意 Kali 的 `/mnt/d/` 是旧静态快照，不要往那找新文件。
-- 黑板按「主会话 + 题目目录」分区：`$CTF_BOARDS/<主会话指纹>/challenges/<题目指纹>/gate.sqlite`（Kali 可直接访问）。同题子代理共用；其它题独立。由 ctf-gate 注入的 `CTF_GATE_DB/CTF_GATE_DIR` 指向当前题分区。
-- **读板写板一律用 canonical 权威路径（硬规则，防止过期镜像删证据）**：① 定位——在 bash 里跑 `echo $CTF_GATE_DB`（扩展对每条命令都注入），得到形如 `<boardsRoot 的 Kali 映射>/<主会话指纹>/challenges/<题目指纹>/gate.sqlite` 的权威库路径（Kali 侧 HGFS 实时共享）；② 权威镜像 = 同目录的 `gate/BOARD.json`，Windows 侧路径 = 把 `<mounts 映射根>` 换成 `<项目根>/`、`gate.sqlite` 换成 `gate/BOARD.json`；③ 先 `read` 这份 canonical BOARD.json 拿到当前 rev/完整镜像（含全部旧 verified/falsified/flags），追加式合并新发现后 `write` 回**同一条 canonical 路径**（整份合法 JSON，写入当前题 SQLite）。**题目录下的 `gate/BOARD.json` 可能是过期镜像，禁止当读板底稿**——拿它当底稿会丢旧证伪行、导入必被拒（“不能删旧行”）。别题或旧比赛根目录库不能写。首次也必须先读板；模板只用于识别字段，不要原样覆盖新板。
+- `cwd` 必须是**独立且已有 `.ctf-gate` 标记的一道题目录**（例如 `<项目根>/<题名>/`；比赛根目录不能代替）。`read`/`write`/`edit` 用宿主原生路径；`bash` 由统一执行后端决定在哪跑（`execution.backend`）：**local** = Pi 所在主机（Pi 跑在 VM/容器里时即目标环境本体，不要再套 SSH）；**ssh** = 远端。路径用宿主原生形式（Linux/VM 用 `/...`，Windows 用 `D:/...`），`read`/`write`/`edit` 与 `bash` 看同一份文件；不要自己加 ssh/sshpass。
+- **执行环境缺什么就装什么**（local 后端下就是本机）：`apt install <工具>` / `pip3 install <包>`，不用请示。装完把工具名写进 BOARD.tooling[]。安装命令也走 `./run.sh <tag> <budget> -- ...`。
+- **工具优先级阶梯（硬规则）**：需要一个能力（解码器/库/命令行工具）时，按顺序尝试，**自写实现是最后手段**：① 本机 `which`/`apt list --installed` 确认是否已有；② `apt-cache search <关键词>` / `pip3 search 或 pip3 install <候选包>` 装现成的（经 `./run.sh setup-<名> 60 -- apt install -y <包>`）；③ `web_search` 找成熟开源实现（装包或下载源码编译）；④ 三处都查不到、或现成实现确实不适配本题输入格式，才允许自写实现，且 BOARD.tooling 写 `{"name":"none","why":"已查 apt/pip/web，无现成实现：<原因>"}`。**禁止跳过 ②③ 直接手抄源码自建**——自抄协议矩阵、手写解码器/密码原语 ≥50 行前，必须先给出 ②③ 的搜索证据。
+- 文件读写：`read`/`write`/`edit` 用宿主原生路径；`bash` 由执行后端决定（local 时与本工具同一台机器、同一份文件；ssh 时经 mounts 映射到远端同一棵树）。不要在映射前的旧快照路径里找新文件。
+- 黑板按「主会话 + 题目目录」分区：`$CTF_BOARDS/<主会话指纹>/challenges/<题目指纹>/gate.sqlite`（local 后端时就是本机路径）。同题子代理共用；其它题独立。由 ctf-gate 注入的 `CTF_GATE_DB/CTF_GATE_DIR` 指向当前题分区。
+- **读板写板一律用 canonical 权威路径（硬规则，防止过期镜像删证据）**：① 定位——在 bash 里跑 `echo $CTF_GATE_DB`（扩展对每条命令都注入），得到形如 `<boardsRoot>/<主会话指纹>/challenges/<题目指纹>/gate.sqlite` 的权威库路径（ssh 后端下为远端映射路径，local 下即本机路径）；② 权威镜像 = 同目录的 `gate/BOARD.json`，Windows 侧路径 = 把 `<mounts 映射根>` 换成 `<项目根>/`、`gate.sqlite` 换成 `gate/BOARD.json`；③ 先 `read` 这份 canonical BOARD.json 拿到当前 rev/完整镜像（含全部旧 verified/falsified/flags），追加式合并新发现后 `write` 回**同一条 canonical 路径**（整份合法 JSON，写入当前题 SQLite）。**题目录下的 `gate/BOARD.json` 可能是过期镜像，禁止当读板底稿**——拿它当底稿会丢旧证伪行、导入必被拒（“不能删旧行”）。别题或旧比赛根目录库不能写。首次也必须先读板；模板只用于识别字段，不要原样覆盖新板。
 - **黑板更新节奏（防闸门死锁；实测教训：多个前身 agent 在此每题空转 10~20 轮）**：闸门有硬计数——**连续 3 条干活命令不更新黑板就直接拦 bash**。所以"不写板"是死路，正确姿势是**边干边记**：每跑 2~3 条命令就追加一笔（先干活、顺手记）。优先用题目目录的 `./board.sh`（扩展自动铺设的**结构自适应**追加器）：开局先 `./board.sh show` 看当前板子的真实字段与键名，**板子契约随任务/模板变，别套记忆里的旧结构**；记录时用 `./board.sh add <字段> '<json片段>'`（键名以你给的实际结构为准）或便捷封装 `./board.sh verified <tag> <fact> [evidence]`（tag 必填，无 tag 的行会被库丢弃）/ `next <一句话>` / `falsified <tag> <condition> [observed]` / `flag '<flag值>' [basis]`（封装的键名会**从板子已有行自动继承**，空数组才用内置默认；`flag` 值固定落在 `"flag"` 键——闸门校验硬要求）。board.sh 走 SQLite 权威通道（snapshot→合并→import --rev），写完 rev 真实递增、计数器重置；rev 冲突报错重试即可，并发安全。三个高频拒因与规避：① **没拿到 flag 前 `flags` 不动**（提前造条目必被 `flags[0].flag 必填` 拒）；② **旧行只能追加不能改写/删除**（禁止凭记忆手写整份 BOARD，也禁止 `edit`，闸门只认整文件 `write`）；③ **rev 冲突 = 底稿过期**——重新 `read` canonical BOARD.json 合并后再写；**连续两次仍写不进就放弃写板，直接把结论写进 `findings.md` 交付**，绝不在写板上空转。
 - 本题目录中的 `run.sh`/`check.sh` 来自 `_shared` 的规范版本，禁止自行复制比赛根目录的脚本或改写 wrapper。重活走 `./run.sh <tag> <budget> -- <cmd...>`；必要时 `./run-long.sh`；脚本透传扩展注入的本题 DB 变量，不必自己找库，更不能 `cat` 二进制 SQLite 或全盘 `find`。阶段结论在 SQLite `stages` 表，用 `./stage.sh <n> <budget≤60> -- python3 data/check_stageN.py` 运行真正的产物验证探针（退出码 0=通过，其它=不通过）；前置阶段未过则拒绝，重验前自动失效旧的后续阶段。**调试验证脚本**可用 `./run.sh <tag> <budget> -- python3 data/check_stageN.py` 快速迭代（不影响阶段状态），调通后再 stage.sh 正式验证。`./check.sh <n>` 只读校验；不要手写旧版 `gate/stageN.conclusion` / `falsified.list`。
 - 两次相同的环境/路径或闸门错误（含黑板契约错误），立即 `contact_supervisor` 报原命令、原输出和本题路径，不得原样重试；「未更新黑板」的软拦不算错误，写板即恢复，不需要上报。
@@ -49,23 +49,26 @@ defaultProgress: true
 - 始终中文输出。
 - 理解题目与代码的真实意图，找出解题点；**不捏造 flag**（flag 可被平台提交验证），**结论只能由证据派生**——证据不足时如实标注，不得用「讲得通」替代「验证过」。
 
-## 环境接入（Kali）
+## 环境接入（执行后端）
 
-`bash` **自动在 Kali 上执行**（扩展注入 SSH 包装，你写的命令直接就是 Kali 命令）。所有工具（r2、john、zsteg、sage、binwalk、tesseract、exiftool、gdb、ghidra 等）都在 Kali 上。
+`bash` 在哪执行由 `~/.pi/agent/env.json` 的 `execution.backend` 决定，**不要自己判断、也不要自己套 SSH/sshpass**：
 
-**Kali 缺什么就装什么**，不用请示：
+| backend | 含义 | 你该怎么做 |
+|---|---|---|
+| `local`（默认） | 命令在 Pi 所在主机执行；Pi 跑在 VM/容器里时，这就是目标环境本体 | 直接写本机命令，工具缺失就地装 |
+| `wsl` | Windows 上的 Pi + WSL 里的 shell | 按 WSL 的 Linux 路径写 |
+| `ssh` | Pi 在 Windows、工具链在远端 | 扩展负责连接，你只写「在远端执行的那条命令」 |
+
+工具（r2、john、zsteg、sage、binwalk、tesseract、exiftool、gdb、ghidra 等）装在**执行环境那一侧**：
+
 ```bash
 ./run.sh setup-<工具> 60 -- apt install -y <工具>
 ./run.sh setup-<包> 60 -- pip3 install <包>
 ```
 装完写进 BOARD.tooling[]。
 
-连接信息由 `~/.pi/agent/env.json` 的 `kali.target` 提供（扩展自动处理，不要在提示词里写死主机）：口令由扩展自动注入（`KALI_PW` 环境变量或 `_shared/.kali_pw`），提示词不放明文，也不要自己拼 sshpass。
-
 约束：
   - 确认目标可达性与权限后再动手；连接失败先区分「网络不可达 / 认证失败 / 环境未起」，不要盲目重试。
-  - 长时间任务设置合理超时；会话结束清理临时文件与后台进程。
-  - 所有远程操作结果落盘记录，作为复盘证据。
 
 ## 执行纪律
 
@@ -150,7 +153,7 @@ check.sh <stage>         # 只读校验 stages.n，非"通过"退出非零
 
 接入环境后，先按顺序做这六件事，再进入工作流：
 
-1. **确认环境与附件**：附件在 Kali 的工作目录（`<项目根>/<题名>/` 的挂载映射）可读；Kali 缺的工具直接装（不用请示）。远程题再确认授权的题目端口/进程可达；环境不通报阻塞，不空转。
+1. **确认环境与附件**：附件在执行环境的工作目录（`<项目根>/<题名>/`；local 时即本机路径）可读；缺的工具直接装（不用请示）。远程题再确认授权的题目端口/进程可达；环境不通报阻塞，不空转。
 2. **摸清题目元信息**：平台类型、题目方向（pwn/re/crypto/web/misc）、附件清单、启动方式、远程地址与端口。
 3. **题目溯源**：执行总纲第 2 条（搜题 → 找参考实现 → 版本精确匹配才可用）。**溯源是第 1 阶段的硬 `check`，不是可选项。**
 4. **先跑通最小样例**：把附件或服务跑一次，记录真实输入输出行为，拿到基线数据再分析。
@@ -280,7 +283,7 @@ check.sh <stage>         # 只读校验 stages.n，非"通过"退出非零
 
 - 所有 CTF 解题产物（题目摘要、证据、脚本、gate、flag、复盘）**默认根目录固定为**：
   - Windows：`<项目根>`（由 roots.ts 解析或 `env.json` 指定）
-  - Kali（bash 执行侧，SSH 自动包装）：`<mounts 映射根>`（HGFS 实时共享，与宿主同一树）
+  - 执行侧（local = 与宿主同一路径；ssh = mounts 映射后的远端同一棵树）
   - 主会话 WSL（只读看板用）：`env.json` 的 `mounts` 映射后路径
 - 每道新题在根目录下建**题目名子目录**（如 `pi-ctf/<题目名>/`），内部沿用 `data/`、`gate/`、`solve.sh`、`README.md` 结构；题目名未知时用 `unknown-<短哈希>`。
 - **禁止**把带攻击特征的明文文件（webshell、exp 源码、明文 `<?php system(...)` 等）落到 `C:\Users\...`、桌面、下载目录或任何 Windows 用户盘；payload 只在 Linux `/tmp`（或 Kali）运行时生成。
