@@ -57,6 +57,7 @@ spawn({ tasks: [{
 - 简报两段：**FACT**（目录/靶机/材料/已观测；未知写 unknown）/ **INTENT**（要达成什么、何时算完；判断标判断）。不写已证伪结论与解题推断——它们在黑板里，开工先读板。
 - flag 格式以本题题面为准，禁止从旧比赛复制。禁止只写「参考主会话上下文」。
 - 长任务 `async: true` + `output`；接力制：接近 `gate/turn_limit`（缺省 45+10）先写 `next` 再收口。
+- **派子 agent 一律 `async: true`**（硬约束）：前台子进程（`async:false`）**不加载**父会话的 ambient 扩展 —— 实测 `ctf` 子 agent 会因此拿不到 `ctf-gate`（闸门与黑板都不生效，且报 `web_search/web_fetch/browser 不可用`）。只有不需要扩展工具的 `delegate`/`worker` 类前台 agent 才可以 `async:false`。
 
 实例与收口：
 
