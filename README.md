@@ -62,6 +62,12 @@ bash tests/run-all.sh        # 语法 + 单元测试 + 迁移自检
 bash scripts/gate_selftest.sh # 闸门与路径的端到端自检（需要项目目录）
 ```
 
+## 扩展如何进到子 agent
+
+`subagentOnlyExtensions` 里的路径由 pi-subagents **原样**传给子进程的 `pi -e`，不做 `~` 展开或相对解析——
+所以那里不适合写路径。本包的做法是：**扩展以 package 形式安装**（`pi install <pkg>`），
+子 agent 通过 ambient extensions 拿到；`agents/*.md` 的 frontmatter 不再写任何扩展路径。
+
 ## 已知边界
 
 - `agents/`、`profiles/` 不是 Pi 自动发现的资源类型，需要安装脚本或扩展按包根读取

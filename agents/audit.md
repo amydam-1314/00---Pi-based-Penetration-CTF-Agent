@@ -10,7 +10,6 @@ inheritProjectContext: true
 inheritGlobalContext: false
 inheritSkills: false
 tools: read, grep, find, ls, bash, write, contact_supervisor, browser, web_search, web_fetch
-subagentOnlyExtensions: C:/Users/25715/.pi/agent/npm/node_modules/pi-agent-browser/extensions/agent-browser.ts, C:/Users/25715/.pi/agent/npm/node_modules/@everyx/pi-web-tools/index.ts
 defaultContext: fresh
 defaultReads: README.md
 output: audit.md
