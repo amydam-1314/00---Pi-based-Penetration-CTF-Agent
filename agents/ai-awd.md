@@ -127,6 +127,6 @@ toolTimeoutMs: 120000
 
 ## 部署注意（写给人看）
 
-- 本角色**不加载 `kali-exec`**（那是 Windows→Kali 的转发）；VPS 上 `bash` 就是本地执行。`extensions: []` 是刻意的，避免把主机侧闸门带进来。
+- 本角色不依赖任何远程转发扩展：VPS/容器上 `bash` 就是本地执行（`execution.backend=local`）。`extensions: []` 是刻意的，避免把主机侧闸门带进来。
 - 拷到 VPS 时需改 `skillPath` 为本机 skills 目录。
 - 赛前必须用模拟平台（mock API）跑通完整一轮：打 → 交 → 解锁 → 写 patch → 提交 → 落盘。正式接口文档到手后只换 `platform/` 实现层。

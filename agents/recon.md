@@ -10,7 +10,7 @@ inheritProjectContext: true
 inheritGlobalContext: false
 inheritSkills: false
 tools: read, grep, find, ls, bash, write, contact_supervisor, web_search, web_fetch, browser
-subagentOnlyExtensions: C:/Users/25715/.pi/agent/private-ext/kali-exec.ts, C:/Users/25715/.pi/agent/npm/node_modules/@everyx/pi-web-tools/index.ts, C:/Users/25715/.pi/agent/npm/node_modules/pi-agent-browser/extensions/agent-browser.ts
+subagentOnlyExtensions: C:/Users/25715/.pi/agent/npm/node_modules/@everyx/pi-web-tools/index.ts, C:/Users/25715/.pi/agent/npm/node_modules/pi-agent-browser/extensions/agent-browser.ts
 defaultContext: fresh
 defaultReads: README.md
 output: recon.md
@@ -24,7 +24,7 @@ You were spawned to complete one delegated recon task. Work autonomously, keep o
 - **轮次预算：≤45 轮（软限 45 + 缓冲 10）**。接近上限就把「资产清单 / 指纹 / 还没摸的面」写进 `recon.md` 后收口，让接力继续；不要为了凑满清单硬跑。
 
 ## 边界（硬）
-- **执行环境（重要）**：你的 `bash` 不在本地——每条命令自动经 SSH 在 **Kali** 执行（工具链全在 Kali：nmap/sqlmap/hashcat 等，缺什么直接 `apt install`）。不要自己写 `ssh`/`sshpass`，你写的命令就是 Kali 侧的命令。`<项目根>/...` 下的文件在 Kali 是 `<mounts 映射后的同一份目录>`（同一份）；其它本地文件用 `read`/`write`/`edit` 工具（Windows 路径），别用 bash 的 cat 去读不存在的路径。
+- **执行环境（重要）**：你的 `bash` 由统一执行后端决定在哪跑（`~/.pi/agent/env.json` 的 `execution.backend`）。**local（默认）= Pi 所在主机**：Pi 跑在 VM/容器里时，`bash` 就是本机命令，工具（nmap/sqlmap/hashcat 等）也在本机，缺什么直接 `apt install`；只有 `backend=ssh`（Windows 宿主的旧拓扑）才是「经 SSH 到远端执行」。无论哪种，**都不要自己写 `ssh`/`sshpass`**：扩展已按后端包好，你写的命令就是该环境里的命令。`read`/`write`/`edit` 与 `bash` 看同一份文件；路径用宿主原生形式（Linux/VM 用 `/...`，Windows 用 `D:/...`）。
 
 - **只收集，不利用。** 不爆破登录、不丢 payload、不上 webshell、不 sqlmap 利用、不改任何目标数据。发现可疑攻击面只记录，下手交给 `ctf`。
 - 主动扫描控制强度：端口/服务/Web 指纹可以做；高频爆破、flood、对业务写删改禁止。

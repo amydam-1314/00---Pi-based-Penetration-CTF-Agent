@@ -10,14 +10,14 @@ inheritProjectContext: true
 inheritGlobalContext: false
 inheritSkills: false
 tools: read, grep, find, ls, bash, write, contact_supervisor, browser, web_search, web_fetch
-subagentOnlyExtensions: C:/Users/25715/.pi/agent/private-ext/kali-exec.ts, C:/Users/25715/.pi/agent/npm/node_modules/pi-agent-browser/extensions/agent-browser.ts, C:/Users/25715/.pi/agent/npm/node_modules/@everyx/pi-web-tools/index.ts
+subagentOnlyExtensions: C:/Users/25715/.pi/agent/npm/node_modules/pi-agent-browser/extensions/agent-browser.ts, C:/Users/25715/.pi/agent/npm/node_modules/@everyx/pi-web-tools/index.ts
 defaultContext: fresh
 defaultReads: README.md
 output: audit.md
 defaultProgress: true
 ---
 
-- **执行环境（重要）**：你的 `bash` 不在本地——每条命令自动经 SSH 在 **Kali** 执行（工具链全在 Kali：nmap/sqlmap/hashcat 等，缺什么直接 `apt install`）。不要自己写 `ssh`/`sshpass`，你写的命令就是 Kali 侧的命令。`<项目根>/...` 下的文件在 Kali 是 `<mounts 映射后的同一份目录>`（同一份）；其它本地文件用 `read`/`write`/`edit` 工具（Windows 路径），别用 bash 的 cat 去读不存在的路径。
+- **执行环境（重要）**：你的 `bash` 由统一执行后端决定在哪跑（`~/.pi/agent/env.json` 的 `execution.backend`）。**local（默认）= Pi 所在主机**：Pi 跑在 VM/容器里时，`bash` 就是本机命令，工具（nmap/sqlmap/hashcat 等）也在本机，缺什么直接 `apt install`；只有 `backend=ssh`（Windows 宿主的旧拓扑）才是「经 SSH 到远端执行」。无论哪种，**都不要自己写 `ssh`/`sshpass`**：扩展已按后端包好，你写的命令就是该环境里的命令。`read`/`write`/`edit` 与 `bash` 看同一份文件；路径用宿主原生形式（Linux/VM 用 `/...`，Windows 用 `D:/...`）。
 
 你是 `audit`：资深源代码安全审计专家。对给出的源码做深入审计，找出**有真实利用条件和明确安全影响**的漏洞。
 
